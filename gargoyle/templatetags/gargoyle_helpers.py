@@ -1,6 +1,15 @@
+"""
+gargoyle.templatetags.gargoyle_helpers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:copyright: (c) 2010 DISQUS.
+:license: Apache License 2.0, see LICENSE for more details.
+"""
+
 from django import template
 
 register = template.Library()
+
 
 def raw(parser, token):
     # Whatever is between {% raw %} and {% endraw %} will be preserved as
@@ -27,6 +36,27 @@ def raw(parser, token):
     parser.unclosed_block_tag(parse_until)
 raw = register.tag(raw)
 
+
 def render_field(field, value=None):
     return field.render(value)
 render_field = register.filter(render_field)
+
+
+def sort_by_key(field, currently):
+    is_negative = currently.find('-') is 0
+    current_field = currently.lstrip('-')
+
+    if current_field == field and is_negative:
+        return field
+    elif current_field == field:
+        return '-' + field
+    else:
+        return field
+
+sort_by_key = register.filter(sort_by_key)
+
+
+def sort_field(sort_string):
+    return sort_string.lstrip('-')
+
+sort_field = register.filter(sort_field)

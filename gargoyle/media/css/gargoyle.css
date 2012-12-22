@@ -22,21 +22,101 @@
     width: 200px;
 }
 
+#container div.toolbar span.search {
+    padding-top: 3px;
+    float: right;
+}
+
+#container div.toolbar ul.sort {
+    float: right;
+    list-style: none;
+    padding: 10px 20px 10px 0;
+    margin: 0 20px 0 0;
+    border-right: 1px solid #EAEAEA;
+}
+
+#container div.toolbar ul.sort li {
+    display: inline-block;
+}
+
+#container div.toolbar ul.sort li a {
+    color: #999;
+    display: block;
+}
+
+#container div.toolbar ul.sort li + li {
+    margin-left: 10px;
+}
+
+#container div.toolbar[data-sort=-label] ul.sort li.label a,
+#container div.toolbar[data-sort=-date_created] ul.sort li.date_created a,
+#container div.toolbar[data-sort=-date_modified] ul.sort li.date_modified a,
+#container div.toolbar[data-sort=label] ul.sort li.label a,
+#container div.toolbar[data-sort=date_created] ul.sort li.date_created a,
+#container div.toolbar[data-sort=date_modified] ul.sort li.date_modified a,
+#container div.toolbar[data-sort=""] ul.sort li.date_modified a {
+    color: #000;
+    font-weight: bold;
+}
+
+#container div.toolbar[data-sort=-label] ul.sort li.label a:after,
+#container div.toolbar[data-sort=-date_created] ul.sort li.date_created a:after,
+#container div.toolbar[data-sort=-date_modified] ul.sort li.date_modified a:after {
+    content: " ▴";
+}
+
+#container div.toolbar[data-sort=label] ul.sort li.label a:after,
+#container div.toolbar[data-sort=date_created] ul.sort li.date_created a:after,
+#container div.toolbar[data-sort=date_modified] ul.sort li.date_modified a:after,
+#container div.toolbar[data-sort=""] ul.sort li.date_modified a:after {
+    content: " ▾";
+}
+
+
+#container div.toolbar span.search input {
+    width: 200px;
+    padding: 6px;
+    font-size: 13px;
+}
+
 #container table.switches {
     width: 100%;
     border-collapse: collapse;
 }
 
+#container table.switches tr:hover {
+    background: #f9f9f9;
+    /*cursor: pointer;*/
+}
+
+#container table.switches tr.hidden {
+    display: none;
+}
+
+#container table.switches tr.collapsed .inner {
+    display: none;
+}
+
+#container table.switches tr {
+    border: 3px solid lightgray;
+    border-width: 0 1px;
+}
+#container table.switches tr:nth-child(even) {
+    border-color: #C5C5C5;
+    background-color: #fcfcfc;
+}
+
 #container table.switches td {
     vertical-align: top;
     border-bottom: solid 1px #efefef;
-    padding: 20px 0;
+    padding: 20px 10px;
 }
+
 
 #container table.switches td.name h4 {
     font-size: 100%;
     font-weight: bold;
-    margin: 0 0 15px 0;
+    margin: 0;
 }
 #container table.switches td.name h4 small {
     color: #999;
@@ -45,9 +125,16 @@
     font-family: "Inconsolata", arial;
 }
 
+#container table.switches td.name h5 {
+    color: #777;
+    font-size: 50%;
+    font-weight: normal;
+    margin: 0.5em 0 0 0;
+}
+
 #container table.switches td.name p {
     color: #666;
-    margin: 0;
+    margin: 10px 0 0 0;
 }
 
 #container table.switches td.name p.addCondition {
@@ -134,7 +221,7 @@
 }
 
 #container table.switches td.status {
-    width: 200px;
+    width: 250px;
     text-align: center;
 }
 #container table.switches td.status p {
@@ -158,7 +245,7 @@
 
 #container table.switches td.actions button.edit span {
     display: block;
-    background: transparent url("../img/edit.png") no-repeat 35% left;
+    background: transparent url("../img/edit.png") no-repeat left 35%;
 }
 
 #container table.switches td.actions button.delete,
@@ -169,7 +256,14 @@
 
 #container table.switches td.actions button.delete span {
     display: block;
-    background: transparent url("../img/delete.png") no-repeat 35% left;
+    background: transparent url("../img/delete.png") no-repeat left 35%;
+}
+
+#container table.switches td.status button.button.toggled[data-status="1"] {
+    border-color: #636363;
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#A8A8A8', endColorstr='#7E7E7E'); /* for IE */
+    background: -webkit-gradient(linear, left top, left bottom, from(#A8A8A8), to(#7E7E7E)); /* for webkit browsers */
+    background: -moz-linear-gradient(top, #7E7E7E, #A8A8A8); /* for firefox 3.6+ */        
 }
 
 #container table.empty {

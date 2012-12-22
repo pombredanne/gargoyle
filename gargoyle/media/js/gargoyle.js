@@ -1,30 +1,4 @@
 $(document).ready(function () {
-    /*
-    CSRF protection snippet copied from
-    http://docs.djangoproject.com/en/dev/ref/contrib/csrf/#ajax
-    */
-    $('html').ajaxSend(function(event, xhr, settings) {
-        function getCookie(name) {
-            var cookieValue = null;
-            if (document.cookie && document.cookie != '') {
-                var cookies = document.cookie.split(';');
-                for (var i = 0; i < cookies.length; i++) {
-                    var cookie = jQuery.trim(cookies[i]);
-                    // Does this cookie string begin with the name we want?
-                    if (cookie.substring(0, name.length + 1) == (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-        if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
-            // Only send the token to relative URLs i.e. locally.
-            xhr.setRequestHeader("X-CSRFToken", getCookie('csrftoken'));
-        }
-    });
-
     var api = function (url, params, succ) {
         $('#status').show();
         $.ajax({
@@ -34,7 +8,7 @@ $(document).ready(function () {
             dataType: "json",
             success: function (resp) {
                 $('#status').hide();
-            
+
                 if (resp.success) {
                     succ(resp.data);
                 } else {
@@ -55,6 +29,21 @@ $(document).ready(function () {
         $.facebox($("#switchForm").tmpl({ add: true }));
     });
 
+    // $(".switches tr").live("click", function (ev) {
+    //     if (ev.target.tagName == 'A' || ev.target.tagName == 'INPUT' || ev.target.tagName == 'LABEL') {
+    //         return;
+    //     }
+    //     var $this = $(this);
+    //     $(".switches tr").each(function (_, el) {
+    //         var $el = $(el);
+    //         if (el == $this.get(0)) {
+    //             $el.removeClass("collapsed");
+    //         } else {
+    //             $el.addClass("collapsed");
+    //         }
+    //     });
+    // });
+
     $(".switches .edit").live("click", function () {
         var row = $(this).parents("tr:first");
 
@@ -64,12 +53,16 @@ $(document).ready(function () {
             key:    row.attr("data-switch-key"),
             name:   row.attr("data-switch-name"),
             desc:   row.attr("data-switch-desc")
-        }))
+        }));
     });
 
     $(".switches .delete").live("click", function () {
         var row = $(this).parents("tr:first");
         var table = row.parents("table:first");
+
+        if (!confirm('Are you SURE you want to remove this switch?')) {
+            return;
+        }
 
         api(GARGOYLE.deleteSwitch, { key: row.attr("data-switch-key") },
             function () {
@@ -85,10 +78,17 @@ $(document).ready(function () {
         var el = $(this);
         var status = el.attr("data-status");
         var labels = {
+            4: "(Inherit from parent)",
             3: "(Active for everyone)",
             2: "(Active for conditions)",
             1: "(Disabled for everyone)"
         };
+
+        if (status == 3) {
+            if (!confirm('Are you SURE you want to enable this switch globally?')) {
+                return;
+            }
+        }
 
         api(GARGOYLE.updateStatus,
             {
@@ -100,7 +100,8 @@ $(document).ready(function () {
                 if (swtch.status == status) {
                     row.find(".toggled").removeClass("toggled");
                     el.addClass("toggled");
-                    if (!swtch.conditions && swtch.status == 2) {
+                    row.attr('data-switch-status', swtch.status);
+                    if ($.isArray(swtch.conditions) && swtch.conditions.length < 1 && swtch.status == 2) {
                         swtch.status = 3;
                     }
                     row.find('.status p').text(labels[swtch.status]);
@@ -119,7 +120,7 @@ $(document).ready(function () {
             form.removeClass('visible');
         }
     });
-    
+
     $("div.conditionsForm select").live("change", function () {
         var field = $(this).val().split(",");
         $(this).
@@ -139,7 +140,7 @@ $(document).ready(function () {
             id: $(this).attr("data-switch"),
             field: $(this).attr("data-field")
         };
-        
+
         $.each($(this).find("input"), function () {
             var val;
 
@@ -168,13 +169,13 @@ $(document).ready(function () {
             field: el.attr("data-field"),
             value: el.attr("data-value")
         };
-        
+
         api(GARGOYLE.delCondition, data, function (swtch) {
             var result = $("#switchData").tmpl(swtch);
             $("table.switches tr[data-switch-key="+ data.key + "]").replaceWith(result);
         });
-        
-    })
+
+    });
 
     $("#facebox .closeFacebox").live("click", function (ev) {
         ev.preventDefault();
@@ -197,7 +198,7 @@ $(document).ready(function () {
                 var result = $("#switchData").tmpl(swtch);
 
                 if (action == "add") {
-                    if ($("table.switches tr").length == 0) {
+                    if ($("table.switches tr").length === 0) {
                         $("table.switches").html(result);
                         $("table.switches").removeClass("empty");
                         $("div.noSwitches").hide();
@@ -210,6 +211,28 @@ $(document).ready(function () {
                     $("table.switches tr[data-switch-key=" + curkey + "]").replaceWith(result);
                     $.facebox.close();
                 }
-            });
+                result.click();
+            }
+        );
+    });
+
+    $('.search input').keyup(function () {
+        var query = $(this).val();
+        $('.switches tr').removeClass('hidden');
+        if (!query) {
+            return;
+        }
+        $('.switches tr').each(function (_, el) {
+            var $el = $(el);
+            var score = 0;
+            score += $el.attr('data-switch-key').score(query);
+            score += $el.attr('data-switch-name').score(query);
+            if ($el.attr('data-switch-description')) {
+                score += $el.attr('data-switch-description').score(query);
+            }
+            if (score === 0) {
+                $el.addClass('hidden');
+            }
+        });
     });
 });

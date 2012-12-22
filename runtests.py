@@ -1,14 +1,26 @@
 #!/usr/bin/env python
+
+"""
+runtests
+~~~~~~~~
+
+:copyright: (c) 2010 DISQUS.
+:license: Apache License 2.0, see LICENSE for more details.
+"""
+
 import sys
-from os.path import dirname, abspath
 
 from django.conf import settings
+from optparse import OptionParser
 
 if not settings.configured:
     settings.configure(
         DATABASE_ENGINE='sqlite3',
-        # HACK: this fixes our threaded runserver remote tests
-        # TEST_DATABASE_NAME='test_sentry',
+        DATABASES={
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+            },
+        },
         INSTALLED_APPS=[
             'django.contrib.auth',
             'django.contrib.admin',
@@ -18,20 +30,48 @@ if not settings.configured:
             # Included to fix Disqus' test Django which solves IntegrityMessage case
             'django.contrib.contenttypes',
             'gargoyle',
+            'south',
+
+            'tests',
         ],
         ROOT_URLCONF='',
         DEBUG=False,
+        TEMPLATE_DEBUG=True,
+        GARGOYLE_SWITCH_DEFAULTS={
+            'active_by_default': {
+              'is_active': True,
+              'label': 'Default Active',
+              'description': 'When you want the newness',
+            },
+            'inactive_by_default': {
+              'is_active': False,
+              'label': 'Default Inactive',
+              'description': 'Controls the funkiness.',
+            },
+        },
+        SITE_ID=1,
     )
 
-from django.test.simple import run_tests
+from django_nose import NoseTestSuiteRunner
 
-def runtests(*test_args):
+
+def runtests(*test_args, **kwargs):
+    if 'south' in settings.INSTALLED_APPS:
+        from south.management.commands import patch_for_test_db_setup
+        patch_for_test_db_setup()
+
     if not test_args:
-        test_args = ['gargoyle']
-    parent = dirname(abspath(__file__))
-    sys.path.insert(0, parent)
-    failures = run_tests(test_args, verbosity=1, interactive=True)
+        test_args = ['tests']
+
+    test_runner = NoseTestSuiteRunner(**kwargs)
+
+    failures = test_runner.run_tests(test_args)
     sys.exit(failures)
 
 if __name__ == '__main__':
-    runtests(*sys.argv[1:])
+    parser = OptionParser()
+    parser.add_option('--verbosity', dest='verbosity', action='store', default=1, type=int)
+    parser.add_options(NoseTestSuiteRunner.options)
+    (options, args) = parser.parse_args()
+
+    runtests(*args, **options.__dict__)

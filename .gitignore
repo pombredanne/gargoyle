@@ -1,5 +1,10 @@
 *.pyc
-*.egg-info/
+*.egg-info
+*.egg
 .DS_Store
-dist/
-build/
+.arcconfig
+.coverage
+/dist
+/build
+/cover
+*.sublime-workspace
