@@ -5,30 +5,13 @@ gargoyle.helpers
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
-
-from django.core.serializers.json import DjangoJSONEncoder
-from django.http import HttpRequest
-from django.utils import simplejson
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import datetime
+import json
 import uuid
 
-
-class MockRequest(HttpRequest):
-    """
-    A mock request object which stores a user
-    instance and the ip address.
-    """
-    def __init__(self, user=None, ip_address=None):
-        from django.contrib.auth.models import AnonymousUser
-
-        self.user = user or AnonymousUser()
-        self.GET = {}
-        self.POST = {}
-        self.COOKIES = {}
-        self.META = {
-            'REMOTE_ADDR': ip_address,
-        }
+from django.core.serializers.json import DjangoJSONEncoder
 
 
 class BetterJSONEncoder(DjangoJSONEncoder):
@@ -43,4 +26,4 @@ class BetterJSONEncoder(DjangoJSONEncoder):
 
 
 def dumps(value, **kwargs):
-    return simplejson.dumps(value, cls=BetterJSONEncoder, **kwargs)
+    return json.dumps(value, cls=BetterJSONEncoder, **kwargs)

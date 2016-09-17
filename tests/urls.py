@@ -2,14 +2,23 @@
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from django.conf.urls.defaults import *
+import nexus
+from django.conf.urls import include, url
+from django.contrib import admin
+from django.http import HttpResponse
+from django.views.generic.base import RedirectView
+
+from gargoyle.compat import subinclude
 
 
-def foo(request):
-    from django.http import HttpResponse
-    return HttpResponse()
+admin.autodiscover()
+nexus.autodiscover()
 
-urlpatterns = patterns('',
-    url('', foo, name='gargoyle_test_foo'),
-)
+urlpatterns = [
+    url(r'^nexus/', include(nexus.site.urls)),
+    url(r'^admin/', subinclude(admin.site.urls)),
+    url(r'^foo/$', lambda request: HttpResponse(), name='gargoyle_test_foo'),
+    url(r'^/?$', RedirectView.as_view(url='/nexus/', permanent=False)),
+]

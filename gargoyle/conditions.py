@@ -1,3 +1,4 @@
+# -*- encoding:utf-8 -*-
 """
 gargoyle.conditions
 ~~~~~~~~~~~~~~~~~~~
@@ -5,20 +6,18 @@ gargoyle.conditions
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
-
-# TODO: i18n
-# Credit to Haystack for abstraction concepts
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import datetime
+import itertools
 
+from django.core.validators import ValidationError
 from django.http import HttpRequest
+from django.utils import six
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
-from django.core.validators import ValidationError
 
 from gargoyle.models import EXCLUDE
-
-import itertools
 
 
 def titlize(s):
@@ -45,7 +44,7 @@ class Field(object):
         value = data.get(self.name)
         if value:
             value = self.clean(value)
-            assert isinstance(value, basestring), 'clean methods must return strings'
+            assert isinstance(value, six.string_types), 'clean methods must return strings'
         return value
 
     def clean(self, value):
@@ -85,26 +84,52 @@ class Choice(Field):
 
 
 class Range(Field):
+    # Only Python 3 catches str being incomparable with int, do this whilst we support Python 2
+    integer_comparable_types = six.integer_types + (float,)
+
     def is_active(self, condition, value):
-        return value >= condition[0] and value <= condition[1]
+        if not isinstance(value, self.integer_comparable_types):
+            return False
+        bounds = list(map(int, condition.split('-')))
+        return value >= bounds[0] and value <= bounds[1]
 
     def validate(self, data):
-        value = filter(None, [data.get(self.name + '[min]'), data.get(self.name + '[max]')]) or None
+        minimum = data.get(self.name + '[min]', '')
+        maximum = data.get(self.name + '[max]', '')
+
+        if minimum and maximum:
+            value = '-'.join((minimum, maximum))
+        else:
+            value = ''
+
         return self.clean(value)
 
     def clean(self, value):
-        if value:
-            try:
-                map(int, value)
-            except (TypeError, ValueError):
-                raise ValidationError('You must enter valid integer values.')
-        return '-'.join(value)
+        error = ValidationError("You must enter two valid integer values separated by a dash.")
+
+        if not value:
+            raise error
+
+        try:
+            bounds = list(map(int, value.split('-')))
+        except (TypeError, ValueError):
+            raise error
+
+        if not len(bounds) == 2:
+            raise error
+
+        return '-'.join(six.text_type(x) for x in bounds)
 
     def render(self, value):
         if not value:
             value = ['', '']
-        return mark_safe('<input type="text" value="%s" placeholder="from" name="%s[min]"/> - <input type="text" placeholder="to" value="%s" name="%s[max]"/>' %
-                         (escape(value[0]), escape(self.name), escape(value[1]), escape(self.name)))
+        return mark_safe(
+            '<input type="text" value="%s" placeholder="from" name="%s[min]"/>'
+            '%% - '
+            '<input type="text" placeholder="to" value="%s" name="%s[max]"/>%%'
+            %
+            (escape(value[0]), escape(self.name), escape(value[1]), escape(self.name))
+        )
 
     def display(self, value):
         value = value.split('-')
@@ -115,7 +140,7 @@ class Percent(Range):
     default_help_text = 'Enter two ranges. e.g. 0-50 is lower 50%'
 
     def is_active(self, condition, value):
-        condition = map(int, condition.split('-'))
+        condition = list(map(int, condition.split('-')))
         mod = value % 100
         return mod >= condition[0] and mod <= condition[1]
 
@@ -126,11 +151,14 @@ class Percent(Range):
     def clean(self, value):
         value = super(Percent, self).clean(value)
         if value:
-            numeric = value.split('-')
-            if int(numeric[0]) < 0 or int(numeric[1]) > 100:
+            minimum, maximum = list(map(int, value.split('-')))
+
+            if minimum < 0 or minimum > 100 or maximum < 0 or maximum > 100:
                 raise ValidationError('You must enter values between 0 and 100.')
-            if int(numeric[0]) > int(numeric[1]):
+
+            if minimum > maximum:
                 raise ValidationError('Start value must be less than end value.')
+
         return value
 
 
@@ -152,7 +180,7 @@ class AbstractDate(Field):
     def clean(self, value):
         try:
             date = self.str_to_date(value)
-        except ValueError, e:
+        except ValueError as e:
             raise ValidationError("Date must be a valid date in the format YYYY-MM-DD.\n(%s)" % e.message)
 
         return date.strftime(self.DATE_FORMAT)
@@ -199,7 +227,7 @@ class ConditionSetBase(type):
             if fields:
                 attrs['fields'].update(fields)
 
-        for field_name, obj in attrs.items():
+        for field_name, obj in list(six.iteritems(attrs)):
             if isinstance(obj, Field):
                 field = attrs.pop(field_name)
                 field.set_values(field_name)
@@ -210,8 +238,7 @@ class ConditionSetBase(type):
         return instance
 
 
-class ConditionSet(object):
-    __metaclass__ = ConditionSetBase
+class ConditionSet(six.with_metaclass(ConditionSetBase)):
 
     def __repr__(self):
         return '<%s>' % (self.__class__.__name__,)
@@ -276,7 +303,7 @@ class ConditionSet(object):
         a boolean representing if the feature is active.
         """
         return_value = None
-        for name, field in self.fields.iteritems():
+        for name, field in six.iteritems(self.fields):
             field_conditions = conditions.get(self.get_namespace(), {}).get(name)
             if field_conditions:
                 value = self.get_field_value(instance, name)
@@ -286,6 +313,9 @@ class ConditionSet(object):
                         if exclude:
                             return False
                         return_value = True
+                    else:
+                        if exclude:
+                            return_value = True
         return return_value
 
     def get_group_label(self):
@@ -312,7 +342,11 @@ class ModelConditionSet(ConditionSet):
         return '%s.%s(%s)' % (self.__module__, self.__class__.__name__, self.get_namespace())
 
     def get_namespace(self):
-        return '%s.%s' % (self.model._meta.app_label, self.model._meta.module_name)
+        if hasattr(self.model._meta, 'model_name'):
+            model_name = self.model._meta.model_name
+        else:
+            model_name = self.model._meta.module_name
+        return '%s.%s' % (self.model._meta.app_label, model_name)
 
     def get_group_label(self):
         return self.model._meta.verbose_name.title()

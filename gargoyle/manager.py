@@ -1,12 +1,15 @@
-from django.conf import settings
-from django.core.cache import get_cache
-from django.http import HttpRequest
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from gargoyle.models import Switch, DISABLED, SELECTIVE, GLOBAL, INHERIT, \
-    INCLUDE, EXCLUDE
+from django.conf import settings
+from django.core.cache import caches
+from django.http import HttpRequest
+from django.utils import six
+from django.utils.functional import SimpleLazyObject
+from modeldict import ModelDict
+
 from gargoyle.proxy import SwitchProxy
 
-from modeldict import ModelDict
+from .constants import DISABLED, EXCLUDE, GLOBAL, INCLUDE, INHERIT, SELECTIVE
 
 
 class SwitchManager(ModelDict):
@@ -38,7 +41,7 @@ class SwitchManager(ModelDict):
         Returns ``True`` if any of ``instances`` match an active switch. Otherwise
         returns ``False``.
 
-        >>> gargoyle.is_active('my_feature', request) #doctest: +SKIP
+        >>> gargoyle.is_active('my_feature', request)
         """
         default = kwargs.pop('default', False)
 
@@ -82,7 +85,7 @@ class SwitchManager(ModelDict):
         # check each switch to see if it can execute
         return_value = False
 
-        for switch in self._registry.itervalues():
+        for switch in six.itervalues(self._registry):
             result = switch.has_active_condition(conditions, instances)
             if result is False:
                 return False
@@ -96,23 +99,29 @@ class SwitchManager(ModelDict):
         """
         Registers a condition set with the manager.
 
-        >>> condition_set = MyConditionSet() #doctest: +SKIP
-        >>> gargoyle.register(condition_set) #doctest: +SKIP
+        >>> condition_set = MyConditionSet()
+        >>> gargoyle.register(condition_set)
         """
 
         if callable(condition_set):
-            condition_set = condition_set()
-        self._registry[condition_set.get_id()] = condition_set
+            registerable = condition_set()
+        else:
+            registerable = condition_set
+        self._registry[registerable.get_id()] = registerable
+        return condition_set
 
     def unregister(self, condition_set):
         """
         Unregisters a condition set with the manager.
 
-        >>> gargoyle.unregister(condition_set) #doctest: +SKIP
+        >>> gargoyle.unregister(condition_set)
         """
         if callable(condition_set):
-            condition_set = condition_set()
-        self._registry.pop(condition_set.get_id(), None)
+            registerable = condition_set()
+        else:
+            registerable = condition_set
+        popped = self._registry.pop(registerable.get_id(), None)
+        return (popped is not None)
 
     def get_condition_set_by_id(self, switch_id):
         """
@@ -126,30 +135,34 @@ class SwitchManager(ModelDict):
         Returns a generator yielding all currently registered
         ConditionSet instances.
         """
-        return self._registry.itervalues()
+        return six.itervalues(self._registry)
 
     def get_all_conditions(self):
         """
         Returns a generator which yields groups of lists of conditions.
 
-        >>> for set_id, label, field in gargoyle.get_all_conditions(): #doctest: +SKIP
-        >>>     print "%(label)s: %(field)s" % (label, field.label) #doctest: +SKIP
+        >>> for set_id, label, field in gargoyle.get_all_conditions():
+        >>>     print("%(label)s: %(field)s" % (label, field.label))
         """
         for condition_set in sorted(self.get_condition_sets(), key=lambda x: x.get_group_label()):
-            group = unicode(condition_set.get_group_label())
-            for field in condition_set.fields.itervalues():
+            group = six.text_type(condition_set.get_group_label())
+            for field in six.itervalues(condition_set.fields):
                 yield condition_set.get_id(), group, field
 
-    def as_request(self, user=None, ip_address=None):
-        from gargoyle.helpers import MockRequest
 
-        return MockRequest(user, ip_address)
+def make_gargoyle():
+    from gargoyle.models import Switch
 
+    kwargs = {
+        'key': 'key',
+        'value': 'value',
+        'instances': True,
+        'auto_create': getattr(settings, 'GARGOYLE_AUTO_CREATE', True),
+    }
 
-if hasattr(settings, 'GARGOYLE_CACHE_NAME'):
-    gargoyle = SwitchManager(Switch, key='key', value='value', instances=True,
-                         auto_create=getattr(settings, 'GARGOYLE_AUTO_CREATE', True),
-                         cache=get_cache(settings.GARGOYLE_CACHE_NAME))
-else:
-    gargoyle = SwitchManager(Switch, key='key', value='value', instances=True,
-                         auto_create=getattr(settings, 'GARGOYLE_AUTO_CREATE', True))
+    if hasattr(settings, 'GARGOYLE_CACHE_NAME'):
+        kwargs['cache'] = caches[settings.GARGOYLE_CACHE_NAME]
+
+    return SwitchManager(Switch, **kwargs)
+
+gargoyle = SimpleLazyObject(make_gargoyle)

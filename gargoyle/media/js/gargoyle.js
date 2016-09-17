@@ -1,59 +1,62 @@
 $(document).ready(function () {
-    var api = function (url, params, succ) {
-        $('#status').show();
-        $.ajax({
-            url: url,
-            type: "POST",
-            data: params,
-            dataType: "json",
-            success: function (resp) {
-                $('#status').hide();
 
-                if (resp.success) {
-                    succ(resp.data);
-                } else {
-                    alert(resp.data);
+    var $constants = $('#gargoyle-constants'),
+        urls = {
+            addSwitch: $constants.data('urlAddSwitch'),
+            updateSwitch: $constants.data('urlUpdateSwitch'),
+            deleteSwitch: $constants.data('urlDeleteSwitch'),
+            updateStatus: $constants.data('urlUpdateStatus'),
+            addCondition: $constants.data('urlAddCondition'),
+            removeCondition: $constants.data('urlRemoveCondition'),
+            deleteImage: $constants.data('urlDeleteImage')
+        },
+        api = function (url, params, succ) {
+            $('#status').show();
+            $.ajax({
+                url: url,
+                type: "POST",
+                data: params,
+                dataType: "json",
+                success: function (resp) {
+                    $('#status').hide();
+
+                    if (resp.success) {
+                        succ(resp.data);
+                    } else {
+                        alert(resp.data);
+                    }
+                },
+                failure: function() {
+                    $('#status').hide();
+                    alert('There was an internal error. Data probably wasn\'t saved');
                 }
-            },
-            failure: function() {
-                $('#status').hide();
-                alert('There was an internal error. Data probably wasn\'t saved');
-            }
-        });
-    };
+            });
+        };
+        switchFormTemplate = $.templates('#switchForm'),
+        switchDataTemplate = $.templates('#switchData'),
+        switchConditionsTemplate = $.templates('#switchConditions');
+
+    $.views.settings.allowCode(true);
 
     // Events
 
     $(".addSwitch").click(function (ev) {
         ev.preventDefault();
-        $.facebox($("#switchForm").tmpl({ add: true }));
+        var content = switchFormTemplate.render({ add: true });
+        $.facebox(content);
     });
 
-    // $(".switches tr").live("click", function (ev) {
-    //     if (ev.target.tagName == 'A' || ev.target.tagName == 'INPUT' || ev.target.tagName == 'LABEL') {
-    //         return;
-    //     }
-    //     var $this = $(this);
-    //     $(".switches tr").each(function (_, el) {
-    //         var $el = $(el);
-    //         if (el == $this.get(0)) {
-    //             $el.removeClass("collapsed");
-    //         } else {
-    //             $el.addClass("collapsed");
-    //         }
-    //     });
-    // });
-
     $(".switches .edit").live("click", function () {
-        var row = $(this).parents("tr:first");
+        var row = $(this).parents("tr:first"),
+            content = switchFormTemplate.render({
+                add:    false,
+                curkey: row.data("switchKey"),
+                key:    row.data("switchKey"),
+                name:   row.data("switchName"),
+                desc:   row.data("switchDesc")
+            });
 
-        $.facebox($("#switchForm").tmpl({
-            add:    false,
-            curkey: row.attr("data-switch-key"),
-            key:    row.attr("data-switch-key"),
-            name:   row.attr("data-switch-name"),
-            desc:   row.attr("data-switch-desc")
-        }));
+        $.facebox(content);
     });
 
     $(".switches .delete").live("click", function () {
@@ -64,7 +67,7 @@ $(document).ready(function () {
             return;
         }
 
-        api(GARGOYLE.deleteSwitch, { key: row.attr("data-switch-key") },
+        api(urls.deleteSwitch, { key: row.data("switchKey") },
             function () {
                 row.remove();
                 if (!table.find("tr").length) {
@@ -76,7 +79,7 @@ $(document).ready(function () {
     $(".switches td.status button").live("click", function () {
         var row = $(this).parents("tr:first");
         var el = $(this);
-        var status = el.attr("data-status");
+        var status = el.data("status");
         var labels = {
             4: "(Inherit from parent)",
             3: "(Active for everyone)",
@@ -90,9 +93,9 @@ $(document).ready(function () {
             }
         }
 
-        api(GARGOYLE.updateStatus,
+        api(urls.updateStatus,
             {
-                key:    row.attr("data-switch-key"),
+                key:    row.data('switchKey'),
                 status: status
             },
 
@@ -100,7 +103,7 @@ $(document).ready(function () {
                 if (swtch.status == status) {
                     row.find(".toggled").removeClass("toggled");
                     el.addClass("toggled");
-                    row.attr('data-switch-status', swtch.status);
+                    row.data('switchStatus', swtch.status);
                     if ($.isArray(swtch.conditions) && swtch.conditions.length < 1 && swtch.status == 2) {
                         swtch.status = 3;
                     }
@@ -111,10 +114,12 @@ $(document).ready(function () {
 
     $("p.addCondition a").live("click", function (ev) {
         ev.preventDefault();
-        var form = $(this).parents("td:first").find("div.conditionsForm:first");
+        var form = $(this).parents("td:first").find("div.conditionsForm:first"),
+            content;
 
         if (form.is(":hidden")) {
-            form.html($("#switchConditions").tmpl({}));
+            content = switchConditionsTemplate.render({});
+            form.html(content);
             form.addClass('visible');
         } else {
             form.removeClass('visible');
@@ -129,16 +134,16 @@ $(document).ready(function () {
 
         $(this).
             parents("tr:first").
-            find("div[data-path=" + field[0] + "." + field[1] + "]").show();
+            find("div[data-path='" + field[0] + "." + field[1] + "']").show();
     });
 
     $("div.conditionsForm form").live("submit", function (ev) {
         ev.preventDefault();
 
         var data = {
-            key: $(this).parents("tr:first").attr("data-switch-key"),
-            id: $(this).attr("data-switch"),
-            field: $(this).attr("data-field")
+            key: $(this).parents("tr:first").data('switchKey'),
+            id: $(this).data('switch'),
+            field: $(this).data('field')
         };
 
         $.each($(this).find("input"), function () {
@@ -152,27 +157,26 @@ $(document).ready(function () {
             data[$(this).attr("name")] = val;
         });
 
-        api(GARGOYLE.addCondition, data, function (swtch) {
-            var result = $("#switchData").tmpl(swtch);
-            $("table.switches tr[data-switch-key="+ data.key + "]").replaceWith(result);
+        api(urls.addCondition, data, function (swtch) {
+            var content = switchDataTemplate.render(swtch);
+            $("table.switches tr[data-switch-key='"+ data.key + "']").replaceWith(content);
         });
     });
 
     $("div.conditions span.value a.delete-condition").live("click", function (ev) {
         ev.preventDefault();
 
-        var el = $(this).parents("span:first");
+        var el = $(this).parents("span:first"),
+            data = {
+                key:   el.parents("tr:first").data('switchKey'),
+                id:    el.data('switch'),
+                field: el.data('field'),
+                value: el.data('value')
+            };
 
-        var data = {
-            key:   el.parents("tr:first").attr("data-switch-key"),
-            id:    el.attr("data-switch"),
-            field: el.attr("data-field"),
-            value: el.attr("data-value")
-        };
-
-        api(GARGOYLE.delCondition, data, function (swtch) {
-            var result = $("#switchData").tmpl(swtch);
-            $("table.switches tr[data-switch-key="+ data.key + "]").replaceWith(result);
+        api(urls.removeCondition, data, function (swtch) {
+            var content = switchDataTemplate.render(swtch);
+            $("table.switches tr[data-switch-key='"+ data.key + "']").replaceWith(content);
         });
 
     });
@@ -183,10 +187,10 @@ $(document).ready(function () {
     });
 
     $("#facebox .submitSwitch").live("click", function () {
-        var action = $(this).attr("data-action");
-        var curkey = $(this).attr("data-curkey");
+        var action = $(this).data('action'),
+            curkey = $(this).data('curkey');
 
-        api(action == "add" ? GARGOYLE.addSwitch : GARGOYLE.updateSwitch,
+        api(action == "add" ? urls.addSwitch : urls.updateSwitch,
             {
                 curkey: curkey,
                 name:   $("#facebox input[name=name]").val(),
@@ -195,23 +199,23 @@ $(document).ready(function () {
             },
 
             function (swtch) {
-                var result = $("#switchData").tmpl(swtch);
+                var content = $(switchDataTemplate.render(swtch));
 
                 if (action == "add") {
                     if ($("table.switches tr").length === 0) {
-                        $("table.switches").html(result);
+                        $("table.switches").html(content);
                         $("table.switches").removeClass("empty");
                         $("div.noSwitches").hide();
                     } else {
-                        $("table.switches tr:last").after(result);
+                        $("table.switches tr:last").after(content);
                     }
 
                     $.facebox.close();
                 } else {
-                    $("table.switches tr[data-switch-key=" + curkey + "]").replaceWith(result);
+                    $("table.switches tr[data-switch-key='" + curkey + "']").replaceWith(content);
                     $.facebox.close();
                 }
-                result.click();
+                content.click();
             }
         );
     });
@@ -225,10 +229,10 @@ $(document).ready(function () {
         $('.switches tr').each(function (_, el) {
             var $el = $(el);
             var score = 0;
-            score += $el.attr('data-switch-key').score(query);
-            score += $el.attr('data-switch-name').score(query);
-            if ($el.attr('data-switch-description')) {
-                score += $el.attr('data-switch-description').score(query);
+            score += $el.data('switchKey').score(query);
+            score += $el.data('switchName').score(query);
+            if ($el.data('switchDescription')) {
+                score += $el.data('switchDescription').score(query);
             }
             if (score === 0) {
                 $el.addClass('hidden');

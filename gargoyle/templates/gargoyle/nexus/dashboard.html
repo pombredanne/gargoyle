@@ -40,7 +40,7 @@
             <col width="100"/>
         </colgroup>
         {% for switch in switches %}
-            <tr class="{% cycle odd,even %} status-{{ switch.status }}">
+            <tr class="{% cycle 'odd' 'even' %} status-{{ switch.status }}">
                 <td class="status-icon"><span>{{ switch.get_status_display }}</span></td>
                 <th>{% if switch.label %}{{ switch.label }}{% else %}{{ switch.key|title }}{% endif %} <small class="command">({{ switch.key }})</small></th>
                 <td class="status">{{ switch.get_status_display }}</td>

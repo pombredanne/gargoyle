@@ -4,38 +4,24 @@
 
 {% block head %}
     {{ block.super }}
-    <link rel="stylesheet" href="{% url nexus:media 'gargoyle' 'css/gargoyle.css' %}">
-    <script>
-        var GARGOYLE = {
-            addSwitch:    "{% url gargoyle:add %}",
-            updateSwitch: "{% url gargoyle:update %}",
-            deleteSwitch: "{% url gargoyle:delete %}",
-            updateStatus: "{% url gargoyle:status %}",
-            addCondition: "{% url gargoyle:add-condition %}",
-            delCondition: "{% url gargoyle:remove-condition %}",
-
-            deleteImage:  "{% url nexus:media 'gargoyle' 'img/delete.png' %}",
-            facebox: {
-                loadingImage: "{% url nexus:media 'gargoyle' 'img/facebox/loading.gif' %}",
-                closeImage:   "{% url nexus:media 'gargoyle' 'img/facebox/closelabel.png' %}"
-            }
-        };
-    </script>
-
-    <script src="{% url nexus:media 'gargoyle' 'js/string_score.min.js' %}"></script>
-    <script src="{% url nexus:media 'gargoyle' 'js/gargoyle.js' %}"></script>
+    <link rel="stylesheet" href="{% url 'nexus:media' 'gargoyle' 'css/gargoyle.css' %}">
+    <script src="{% url 'nexus:media' 'gargoyle' 'js/jsrender.min.js' %}"></script>
+    <script src="{% url 'nexus:media' 'gargoyle' 'js/string_score.min.js' %}"></script>
+    <script src="{% url 'nexus:media' 'gargoyle' 'js/gargoyle.js' %}"
+            id="gargoyle-constants"
+            data-url-add-switch="{% url 'gargoyle:add' %}"
+            data-url-update-switch="{% url 'gargoyle:update' %}"
+            data-url-delete-switch="{% url 'gargoyle:delete' %}"
+            data-url-update-status="{% url 'gargoyle:status' %}"
+            data-url-add-condition="{% url 'gargoyle:add-condition' %}"
+            data-url-remove-condition="{% url 'gargoyle:remove-condition' %}"
+        ></script>
 {% endblock %}
 
 {% block content %}
     <div class="toolbar" data-sort="{{ sorted_by }}">
         <button class="button addSwitch">Add a Switch</button>
 
-        <!--
-        <span class="switchTest">
-            <input type="text">
-            <button class="button">Test Switch</button>
-        </span>
-        -->
         <span class="search">
             <input type="text" placeholder="search">
         </span>
@@ -59,14 +45,14 @@
 
     <table class="switches {% if not switches %}empty{% endif %}">
         {% for switch in switches %}
-        <tr id="id_{{ switch.key }}" data-switch-key="{{ switch.key }}" data-switch-name="{{ switch.label }}" data-switch-desc="{{ switch.description }}" data-switch-status="{{ switch.status }}">
+        <tr data-switch-key="{{ switch.key }}" data-switch-name="{{ switch.label }}" data-switch-desc="{{ switch.description }}" data-switch-status="{{ switch.status }}">
             <td class="name">
                 <h4>{% if switch.label %}{{ switch.label }}{% else %}{{ switch.key|title }}{% endif %} <small class="command">({{ switch.key }})</small></h4>
                 <h5>
                     {% if sorted_by|sort_field == 'date_created' %}
                         Created {{ switch.date_created|timesince }} ago
                     {% else %}
-                        Last modified {{ switch.date_created|timesince }} ago
+                        Last modified {{ switch.date_modified|timesince }} ago
                     {% endif %}
                 </h5>
                 <div class="inner">
@@ -82,7 +68,7 @@
                                     <span data-switch="{{ group.id }}" data-field="{{ field }}" data-value="{{ value }}" class="value">
                                         <nobr>{% if is_exclude %}<strong>not</strong> {% endif %}{{ display }}
                                             <a href="#" class="delete-condition" title="Delete this condition">
-                                              <img src="{% url nexus:media 'gargoyle' 'img/delete.png' %}">
+                                              <img src="{% url 'nexus:media' 'gargoyle' 'img/delete.png' %}">
                                             </a>
                                         </nobr>
                                     </span>
@@ -126,19 +112,19 @@
         </tr>
         {% endfor %}
     </table>
-    {% raw %}
+    {% verbatim %}
         <script type="text/x-jquery-tmpl" id="switchForm">
-            {{ if add }}
+            {{if add}}
             <h2>Add a Switch</h2>
-            {{ else }}
+            {{else}}
             <h2>Update a Switch</h2>
-            {{ /if }}
+            {{/if}}
 
             <table class="switchForm">
                 <tr>
                     <th>Name:</th>
                     <td>
-                        <input name="name" type="text" value="{{ if name }}${name}{{ /if }}">
+                        <input name="name" type="text" value="{{if name}}{{>name}}{{/if}}">
                         <p>A descriptive name for this switch.</p>
                     </td>
                 </tr>
@@ -146,7 +132,7 @@
                 <tr>
                     <th>Key:</th>
                     <td>
-                        <input name="key" type="text" value="{{ if key }}${key}{{ /if }}">
+                        <input name="key" type="text" value="{{if key}}{{>key}}{{/if}}">
                         <p>The key can be any valid JSON string.</p>
                     </td>
                 </tr>
@@ -154,7 +140,7 @@
                 <tr>
                     <th>Description:</th>
                     <td>
-                        <textarea name="desc">{{ if desc }}${desc}{{ /if }}</textarea>
+                        <textarea name="desc">{{if desc}}{{>desc}}{{/if}}</textarea>
                         <p>A brief description on what this switch accomplishes.</p>
                     </td>
                 </tr>
@@ -162,9 +148,9 @@
                 <tr>
                     <td colspan="2" class="buttons">
                         <button
-                            data-action="{{ if add }}add{{ else }}update{{ /if }}"
-                            data-curkey="${curkey}"
-                            class="submitSwitch small button">{{ if add }}Add{{ else }}Update{{ /if }}</button>
+                            data-action="{{if add}}add{{else}}update{{/if}}"
+                            data-curkey="{{>curkey}}"
+                            class="submitSwitch small button">{{if add}}Add{{else}}Update{{/if}}</button>
                         or <a href="#" class="closeFacebox">cancel</a>
                     </td>
                 </tr>
@@ -172,29 +158,29 @@
         </script>
 
         <script type="text/x-jquery-tmpl" id="switchData">
-            <tr id="id_${key}" data-switch-key="${key}" data-switch-name="${label}" data-switch-desc="${description}">
+            <tr data-switch-key="{{>key}}" data-switch-name="{{>label}}" data-switch-desc="{{>description}}">
                 <td class="name">
-                    <h4>${label} <small class="command">(${key})</small></h4>
+                    <h4>{{>label}} <small class="command">({{>key}})</small></h4>
                     <div class="inner">
                         {{if description}}
-                            <p>${description}</p>
+                            <p>{{>description}}</p>
                         {{/if}}
 
                         <div class="conditions">
-                            {{ each(i, group) conditions }}
+                            {{for conditions}}
                                 <div class="group">
-                                    <label>${group.label}</label>
-                                    {{ each(i, item) group.conditions }}
-                                        <span data-switch="${group.id}" data-field="${item[0]}" data-value="${item[1]}" class="value">
-                                            <nobr>{{if item[3]}}<strong>not</strong> {{/if}}${item[2]}
+                                    <label>{{>label}}</label>
+                                    {{for conditions}}
+                                        <span data-switch="{{>#parent.parent.data.id}}" data-field="{{>#data[0]}}" data-value="{{>#data[1]}}" class="value">
+                                            <nobr>{{if #data[3]}}<strong>not</strong>{{/if}} {{>#data[2]}}
                                               <a href="#" class="delete-condition" title="Delete this condition">
-                                                <img src="${GARGOYLE.deleteImage}">
+                                                <img src="{% endverbatim %}{% url 'nexus:media' 'gargoyle' 'img/delete.png' %}{% verbatim %}">
                                               </a>
                                             </nobr>
                                         </span>
-                                    {{ /each }}
+                                    {{/for}}
                                 </div>
-                            {{ /each }}
+                            {{/for}}
                         </div>
 
                         <p class="addCondition"><a href="#">Add a condition</a></p>
@@ -220,7 +206,7 @@
                     </button>
                     <div class="inner">
                         <p>
-                            (${statusLabel})
+                            ({{>statusLabel}})
                         </p>
                     </div>
                 </td>
@@ -231,7 +217,7 @@
                 </td>
             </tr>
         </script>
-    {% endraw %}
+    {% endverbatim %}
 
     <script type="text/x-jquery-tmpl" id="switchConditions">
         <div class="clearfix">

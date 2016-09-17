@@ -5,26 +5,21 @@ gargoyle.nexus_modules
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
-import nexus
-import os.path
-
 from functools import wraps
 
+import nexus
 from django.conf import settings
+from django.conf.urls import url
 from django.http import HttpResponse, HttpResponseNotFound
+from django.utils import six
 
-from gargoyle import gargoyle, autodiscover
-from gargoyle.helpers import dumps
-from gargoyle.models import Switch, DISABLED
+from gargoyle import gargoyle, signals
 from gargoyle.conditions import ValidationError
-from gargoyle import signals
-
-
-GARGOYLE_ROOT = os.path.dirname(__file__)
-
-autodiscover()
+from gargoyle.helpers import dumps
+from gargoyle.models import DISABLED, Switch
 
 logger = logging.getLogger('gargoyle.switches')
 
@@ -37,16 +32,17 @@ class GargoyleException(Exception):
         return self.message
 
 
-def json(func):
+def json_view(func):
     "Decorator to make JSON views simpler"
 
+    @wraps(func)
     def wrapper(self, request, *args, **kwargs):
         try:
             response = {
                 "success": True,
                 "data": func(self, request, *args, **kwargs)
             }
-        except GargoyleException, exc:
+        except GargoyleException as exc:
             response = {
                 "success": False,
                 "data": exc.message
@@ -56,18 +52,18 @@ def json(func):
                 "success": False,
                 "data": "Switch cannot be found"
             }
-        except ValidationError, e:
+        except ValidationError as e:
             response = {
                 "success": False,
-                "data": u','.join(map(unicode, e.messages)),
+                "data": u','.join(map(six.text_type, e.messages)),
             }
         except Exception:
             if settings.DEBUG:
                 import traceback
                 traceback.print_exc()
             raise
-        return HttpResponse(dumps(response), mimetype="application/json")
-    wrapper = wraps(func)(wrapper)
+        return HttpResponse(dumps(response), content_type="application/json")
+
     return wrapper
 
 
@@ -79,19 +75,15 @@ class GargoyleModule(nexus.NexusModule):
         return 'Gargoyle'
 
     def get_urls(self):
-        from django.conf.urls.defaults import patterns, url
-
-        urlpatterns = patterns('',
-                               url(r'^add/$', self.as_view(self.add), name='add'),
-                               url(r'^update/$', self.as_view(self.update), name='update'),
-                               url(r'^delete/$', self.as_view(self.delete), name='delete'),
-                               url(r'^status/$', self.as_view(self.status), name='status'),
-                               url(r'^conditions/add/$', self.as_view(self.add_condition), name='add-condition'),
-                               url(r'^conditions/remove/$', self.as_view(self.remove_condition), name='remove-condition'),
-                               url(r'^$', self.as_view(self.index), name='index'),
-                               )
-
-        return urlpatterns
+        return [
+            url(r'^add/$', self.as_view(self.add), name='add'),
+            url(r'^update/$', self.as_view(self.update), name='update'),
+            url(r'^delete/$', self.as_view(self.delete), name='delete'),
+            url(r'^status/$', self.as_view(self.status), name='status'),
+            url(r'^conditions/add/$', self.as_view(self.add_condition), name='add-condition'),
+            url(r'^conditions/remove/$', self.as_view(self.remove_condition), name='remove-condition'),
+            url(r'^$', self.as_view(self.index), name='index'),
+        ]
 
     def render_on_dashboard(self, request):
         active_switches_count = Switch.objects.exclude(status=DISABLED).count()
@@ -117,19 +109,20 @@ class GargoyleModule(nexus.NexusModule):
             "sorted_by": sort_by
         }, request)
 
+    @json_view
     def add(self, request):
         key = request.POST.get("key")
 
         if not key:
             raise GargoyleException("Key cannot be empty")
 
-        if len(key) > 32:
-            raise GargoyleException("Key must be less than or equal to 32 characters in length")
+        if len(key) > 64:
+            raise GargoyleException("Key must be less than or equal to 64 characters in length")
 
         label = request.POST.get("name", "").strip()
 
-        if len(label) > 32:
-            raise GargoyleException("Name must be less than or equal to 32 characters in length")
+        if len(label) > 64:
+            raise GargoyleException("Name must be less than or equal to 64 characters in length")
 
         switch, created = Switch.objects.get_or_create(
             key=key,
@@ -152,20 +145,20 @@ class GargoyleModule(nexus.NexusModule):
         )
 
         return switch.to_dict(gargoyle)
-    add = json(add)
 
+    @json_view
     def update(self, request):
         switch = Switch.objects.get(key=request.POST.get("curkey"))
 
         key = request.POST.get("key")
 
-        if len(key) > 32:
-            raise GargoyleException("Key must be less than or equal to 32 characters in length")
+        if len(key) > 64:
+            raise GargoyleException("Key must be less than or equal to 64 characters in length")
 
         label = request.POST.get("name", "")
 
-        if len(label) > 32:
-            raise GargoyleException("Name must be less than or equal to 32 characters in length")
+        if len(label) > 64:
+            raise GargoyleException("Name must be less than or equal to 64 characters in length")
 
         values = dict(
             label=label,
@@ -174,10 +167,10 @@ class GargoyleModule(nexus.NexusModule):
         )
 
         changes = {}
-        for key, value in values.iteritems():
-            new_value = getattr(switch, key)
+        for attribute, value in six.iteritems(values):
+            new_value = getattr(switch, attribute)
             if new_value != value:
-                changes[key] = (value, new_value)
+                changes[attribute] = (value, new_value)
 
         if changes:
             if switch.key != key:
@@ -189,7 +182,7 @@ class GargoyleModule(nexus.NexusModule):
             switch.save()
 
             logger.info('Switch %r updated %%s' % switch.key,
-                        ', '.join('%s=%r->%r' % (k, v[0], v[1]) for k, v in sorted(changes.iteritems())))
+                        ', '.join('%s=%r->%r' % (k, v[0], v[1]) for k, v in sorted(six.iteritems(changes))))
 
             signals.switch_updated.send(
                 sender=self,
@@ -199,8 +192,8 @@ class GargoyleModule(nexus.NexusModule):
             )
 
         return switch.to_dict(gargoyle)
-    update = json(update)
 
+    @json_view
     def status(self, request):
         switch = Switch.objects.get(key=request.POST.get("key"))
 
@@ -228,8 +221,8 @@ class GargoyleModule(nexus.NexusModule):
             )
 
         return switch.to_dict(gargoyle)
-    status = json(status)
 
+    @json_view
     def delete(self, request):
         switch = Switch.objects.get(key=request.POST.get("key"))
         switch.delete()
@@ -243,8 +236,8 @@ class GargoyleModule(nexus.NexusModule):
         )
 
         return {}
-    delete = json(delete)
 
+    @json_view
     def add_condition(self, request):
         key = request.POST.get("key")
         condition_set_id = request.POST.get("id")
@@ -275,15 +268,15 @@ class GargoyleModule(nexus.NexusModule):
         )
 
         return switch.to_dict(gargoyle)
-    add_condition = json(add_condition)
 
+    @json_view
     def remove_condition(self, request):
         key = request.POST.get("key")
         condition_set_id = request.POST.get("id")
         field_name = request.POST.get("field")
         value = request.POST.get("value")
 
-        if not all([key, condition_set_id, field_name, value]):
+        if not all([key, condition_set_id, field_name]):
             raise GargoyleException("Fields cannot be empty")
 
         switch = gargoyle[key]
@@ -304,7 +297,6 @@ class GargoyleModule(nexus.NexusModule):
         )
 
         return switch.to_dict(gargoyle)
-    remove_condition = json(remove_condition)
 
     @property
     def valid_sort_orders(self):

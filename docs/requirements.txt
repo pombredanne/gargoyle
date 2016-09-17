@@ -1,1 +1,4 @@
-Django==1.2
+-r ../tests/requirements.txt
+django-modeldict-yplan
+Django
+nexus-yplan

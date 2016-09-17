@@ -4,12 +4,13 @@ Signals
 .. currentmodule:: gargoyle.signals
 
 .. data:: gargoyle.signals.switch_added
-   :noindex:
+    :noindex:
 
-   This signal is sent when a switch is added (similar to Django's post_save, when
-   created is True).
+    This signal is sent when a switch is added (similar to Django's ``post_save``, when created is ``True``).
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_added_callback(sender, request, switch, **extra):
             logging.debug('Switch was added: %r', switch.label)
@@ -18,11 +19,13 @@ Signals
         switch_added.connect(switch_added_callback)
 
 .. data:: gargoyle.signals.switch_deleted
-   :noindex:
+    :noindex:
 
-   This signal is sent when a switch is deleted (similar to Django's post_delete).
+    This signal is sent when a switch is deleted (similar to Django's ``post_delete``).
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_deleted_callback(sender, request, switch, **extra):
             logging.debug('Switch was deleted: %r', switch.label)
@@ -31,12 +34,13 @@ Signals
         switch_deleted.connect(switch_deleted_callback)
 
 .. data:: gargoyle.signals.switch_updated
-   :noindex:
+    :noindex:
 
-   This signal is sent when a switch is updated (similar to Django's post_save, when
-   created is False).
+    This signal is sent when a switch is updated (similar to Django's ``post_save``, when created is ``False``).
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_updated_callback(sender, request, switch, **extra):
             logging.debug('Switch was updated: %r', switch.label)
@@ -45,11 +49,13 @@ Signals
         switch_updated.connect(switch_updated_callback)
 
 .. data:: gargoyle.signals.switch_status_updated
-   :noindex:
+    :noindex:
 
-   This signal is sent when a condition is removed from a switch.
+    This signal is sent when a condition is updated in a switch.
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_status_updated_callback(sender, request, switch, status, **extra):
             logging.debug('Switch has updated status: %r; %r', switch.label, status)
@@ -58,11 +64,13 @@ Signals
         switch_status_updated.connect(switch_status_updated_callback)
 
 .. data:: gargoyle.signals.switch_condition_added
-   :noindex:
+    :noindex:
 
-   This signal is sent when a condition is added to a switch.
+    This signal is sent when a condition is added to a switch.
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_condition_added_callback(sender, request, switch, condition, **extra):
             logging.debug('Switch has new condition: %r; %r', switch.label, condition)
@@ -71,11 +79,13 @@ Signals
         switch_condition_added.connect(switch_condition_added_callback)
 
 .. data:: gargoyle.signals.switch_condition_deleted
-   :noindex:
+    :noindex:
 
-   This signal is sent when a condition is removed from a switch.
+    This signal is sent when a condition is removed from a switch.
 
-   Example subscriber::
+    Example subscriber:
+
+    .. code-block:: python
 
         def switch_condition_deleted_callback(sender, request, switch, condition, **extra):
             logging.debug('Switch has deleted condition: %r; %r', switch.label, condition)

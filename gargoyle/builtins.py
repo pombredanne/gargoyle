@@ -5,16 +5,22 @@ gargoyle.builtins
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
-
-from gargoyle import gargoyle
-from gargoyle.conditions import ModelConditionSet, RequestConditionSet, Percent, String, Boolean, \
-    ConditionSet, OnOrAfterDate
-
-from django.conf import settings
-from django.contrib.auth.models import AnonymousUser, User
-from django.core.validators import validate_ipv4_address
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import socket
+import struct
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.core.validators import validate_ipv4_address
+
+from gargoyle import gargoyle
+from gargoyle.conditions import (
+    Boolean, ConditionSet, ModelConditionSet, OnOrAfterDate, Percent, RequestConditionSet, String
+)
+
+User = get_user_model()
 
 
 class UserConditionSet(ModelConditionSet):
@@ -52,6 +58,7 @@ class IPAddress(String):
         return value
 
 
+@gargoyle.register
 class IPAddressConditionSet(RequestConditionSet):
     percent = Percent()
     ip_address = IPAddress(label='IP Address')
@@ -64,19 +71,28 @@ class IPAddressConditionSet(RequestConditionSet):
         # XXX: can we come up w/ a better API?
         # Ensure we map ``percent`` to the ``id`` column
         if field_name == 'percent':
-            return sum([int(x) for x in instance.META['REMOTE_ADDR'].split('.')])
+            return self._ip_to_int(instance.META['REMOTE_ADDR'])
         elif field_name == 'ip_address':
             return instance.META['REMOTE_ADDR']
         elif field_name == 'internal_ip':
             return instance.META['REMOTE_ADDR'] in settings.INTERNAL_IPS
         return super(IPAddressConditionSet, self).get_field_value(instance, field_name)
 
+    def _ip_to_int(self, ip):
+        if '.' in ip:
+            # IPv4
+            return sum([int(x) for x in ip.split('.')])
+        if ':' in ip:
+            # IPv6
+            hi, lo = struct.unpack('!QQ', socket.inet_pton(socket.AF_INET6, ip))
+            return (hi << 64) | lo
+        raise ValueError('Invalid IP Address %r' % ip)
+
     def get_group_label(self):
         return 'IP Address'
 
-gargoyle.register(IPAddressConditionSet())
 
-
+@gargoyle.register
 class HostConditionSet(ConditionSet):
     hostname = String()
 
@@ -92,5 +108,3 @@ class HostConditionSet(ConditionSet):
 
     def get_group_label(self):
         return 'Host'
-
-gargoyle.register(HostConditionSet())

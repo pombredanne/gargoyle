@@ -5,25 +5,16 @@ gargoyle.models
 :copyright: (c) 2010 DISQUS.
 :license: Apache License 2.0, see LICENSE for more details.
 """
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from django.db import models
 from django.conf import settings
+from django.db import models
+from django.utils import six
+from django.utils.timezone import now
 from django.utils.translation import ugettext_lazy as _
-try:
-    from django.utils.timezone import now
-except ImportError:
-    import datetime
-    now = datetime.datetime.now
-
 from jsonfield import JSONField
 
-DISABLED = 1
-SELECTIVE = 2
-GLOBAL = 3
-INHERIT = 4
-
-INCLUDE = 'i'
-EXCLUDE = 'e'
+from .constants import DISABLED, EXCLUDE, GLOBAL, INCLUDE, INHERIT, SELECTIVE
 
 
 class Switch(models.Model):
@@ -55,14 +46,15 @@ class Switch(models.Model):
     }
 
     key = models.CharField(max_length=64, primary_key=True)
-    value = JSONField(default="{}")
+    value = JSONField()
     label = models.CharField(max_length=64, null=True)
     date_created = models.DateTimeField(default=now)
-    date_modified = models.DateTimeField(default=now)
+    date_modified = models.DateTimeField(auto_now=True)
     description = models.TextField(null=True)
     status = models.PositiveSmallIntegerField(default=DISABLED, choices=STATUS_CHOICES)
 
     class Meta:
+        app_label = 'gargoyle'
         permissions = (
             ("can_view", "Can view"),
         )
@@ -130,13 +122,13 @@ class Switch(models.Model):
 
         If ``commit`` is ``False``, the data will not be written to the database.
 
-        >>> switch = gargoyle['my_switch'] #doctest: +SKIP
-        >>> condition_set_id = condition_set.get_id() #doctest: +SKIP
-        >>> switch.add_condition(condition_set_id, 'percent', [0, 50], exclude=False) #doctest: +SKIP
+        >>> switch = gargoyle['my_switch']
+        >>> condition_set_id = condition_set.get_id()
+        >>> switch.add_condition(condition_set_id, 'percent', '0-50', exclude=False)
         """
         condition_set = manager.get_condition_set_by_id(condition_set)
 
-        assert isinstance(condition, basestring), 'conditions must be strings'
+        assert isinstance(condition, six.string_types), 'conditions must be strings'
 
         namespace = condition_set.get_namespace()
 
@@ -156,9 +148,9 @@ class Switch(models.Model):
 
         If ``commit`` is ``False``, the data will not be written to the database.
 
-        >>> switch = gargoyle['my_switch'] #doctest: +SKIP
-        >>> condition_set_id = condition_set.get_id() #doctest: +SKIP
-        >>> switch.remove_condition(condition_set_id, 'percent', [0, 50]) #doctest: +SKIP
+        >>> switch = gargoyle['my_switch']
+        >>> condition_set_id = condition_set.get_id()
+        >>> switch.remove_condition(condition_set_id, 'percent', [0, 50])
         """
         condition_set = manager.get_condition_set_by_id(condition_set)
 
@@ -189,15 +181,15 @@ class Switch(models.Model):
 
         Clear all conditions given a ConditionSet, and a field name:
 
-        >>> switch = gargoyle['my_switch'] #doctest: +SKIP
-        >>> condition_set_id = condition_set.get_id() #doctest: +SKIP
-        >>> switch.clear_conditions(condition_set_id, 'percent') #doctest: +SKIP
+        >>> switch = gargoyle['my_switch']
+        >>> condition_set_id = condition_set.get_id()
+        >>> switch.clear_conditions(condition_set_id, 'percent')
 
         You can also clear all conditions given a ConditionSet:
 
-        >>> switch = gargoyle['my_switch'] #doctest: +SKIP
-        >>> condition_set_id = condition_set.get_id() #doctest: +SKIP
-        >>> switch.clear_conditions(condition_set_id) #doctest: +SKIP
+        >>> switch = gargoyle['my_switch']
+        >>> condition_set_id = condition_set.get_id()
+        >>> switch.clear_conditions(condition_set_id)
         """
         condition_set = manager.get_condition_set_by_id(condition_set)
 
@@ -220,15 +212,15 @@ class Switch(models.Model):
         """
         Returns a generator which yields groups of lists of conditions.
 
-        >>> for label, set_id, field, value, exclude in gargoyle.get_all_conditions(): #doctest: +SKIP
-        >>>     print "%(label)s: %(field)s = %(value)s (exclude: %(exclude)s)" % (label, field.label, value, exclude) #doctest: +SKIP
+        >>> for label, set_id, field, value, exclude in gargoyle.get_all_conditions():
+        >>>     print("%(label)s: %(field)s = %(value)s (exclude: %(exclude)s)" % (label, field.label, value, exclude))
         """
         for condition_set in sorted(manager.get_condition_sets(), key=lambda x: x.get_group_label()):
             ns = condition_set.get_namespace()
             condition_set_id = condition_set.get_id()
             if ns in self.value:
                 group = condition_set.get_group_label()
-                for name, field in condition_set.fields.iteritems():
+                for name, field in six.iteritems(condition_set.fields):
                     for value in self.value[ns].get(name, []):
                         try:
                             yield condition_set_id, group, field, value[1], value[0] == EXCLUDE

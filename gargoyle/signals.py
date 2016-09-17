@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import django.dispatch
 
 #: This signal is sent when a switch is added (similar to Django's post_save, when
